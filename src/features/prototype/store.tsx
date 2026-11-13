@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
-import { initialState, transition, type Action, type State } from "./model";
+import { usePostHog } from "@posthog/react";
+import { currentPerson, initialState, transition, type Action, type State } from "./model";
 import { parseState, readState, saveState, STORAGE_KEY, type StoragePort } from "./storage";
 function browserStorage(): StoragePort | null {
   try {
@@ -83,9 +84,27 @@ function useStore() {
 }
 type Store = ReturnType<typeof useStore>;
 const Context = createContext<Store | null>(null);
+// Personas are shared synthetic profiles, so many real visitors pick the same one.
+// Identifying by persona would merge them into one PostHog person; record only the
+// simulated role as an event property.
+function PostHogRole({ state }: { state: State }) {
+  const posthog = usePostHog();
+  const role = currentPerson(state)?.role ?? "visitor";
+
+  useEffect(() => {
+    posthog.register({ simulated_role: role });
+  }, [role, posthog]);
+
+  return null;
+}
 export function PrototypeProvider({ children }: { children: ReactNode }) {
   const store = useStore();
-  return <Context.Provider value={store}>{children}</Context.Provider>;
+  return (
+    <Context.Provider value={store}>
+      <PostHogRole state={store.state} />
+      {children}
+    </Context.Provider>
+  );
 }
 export function usePrototype() {
   const store = useContext(Context);

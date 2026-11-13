@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from "react";
+import { usePostHog } from "@posthog/react";
 import { Link } from "react-router";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -86,6 +87,7 @@ export function EmployerJobs() {
 }
 export function CompanyEditor() {
   const { state, run } = usePrototype();
+  const posthog = usePostHog();
   const person = currentPerson(state)!;
   const company = state.companies.find((x) => x.id === person.companyId)!;
   const [message, setMessage] = useState("");
@@ -98,8 +100,10 @@ export function CompanyEditor() {
         name: String(data.get("name")),
         description: String(data.get("description")),
       })
-    )
+    ) {
+      posthog.capture("company_profile_saved");
       setMessage("Dane firmy zostały zapisane.");
+    }
   }
   return (
     <>

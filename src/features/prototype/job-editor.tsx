@@ -1,4 +1,5 @@
 import { useRef, useState, type FormEvent } from "react";
+import { usePostHog } from "@posthog/react";
 import { Link, useNavigate, useParams } from "react-router";
 import {
   CircleCheck,
@@ -91,6 +92,7 @@ function StateIcon({ state }: { state: EssentialState }) {
 export function EmployerJobEditor() {
   const { id } = useParams();
   const { state, run } = usePrototype();
+  const posthog = usePostHog();
   const person = currentPerson(state)!;
   const navigate = useNavigate();
   const existing = state.jobs.find((x) => x.id === id && x.companyId === person.companyId);
@@ -212,7 +214,13 @@ export function EmployerJobEditor() {
       );
       return;
     }
-    if (run({ type: "publish", job: parsed.data })) navigate("/app/oferty");
+    if (run({ type: "publish", job: parsed.data })) {
+      posthog.capture("job_published", {
+        category,
+        missing_essentials_count: missing.length,
+      });
+      navigate("/app/oferty");
+    }
   }
 
   function saveDraft() {
@@ -225,6 +233,7 @@ export function EmployerJobEditor() {
       return;
     }
     if (run({ type: "save_job_draft", job: parsed.data })) {
+      posthog.capture("job_draft_saved", { category });
       if (!existing) navigate(`/app/oferty/${jobId}`, { replace: true });
       else setMessage("Szkic został zapisany.");
     }
@@ -240,6 +249,10 @@ export function EmployerJobEditor() {
     const requestId = crypto.randomUUID();
     if (!run({ type: "request_help", requestId, job: parsed.data, ...input }))
       return "Nie udało się zapisać prośby. Sprawdź dane eksperta.";
+    posthog.capture("expert_help_requested", {
+      channel: input.channel,
+      question_count: input.questions.length,
+    });
     if (input.channel === "link")
       void navigator.clipboard?.writeText(expertLink(requestId)).catch(() => {});
     setDialogKey(undefined);
